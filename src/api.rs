@@ -80,7 +80,12 @@ impl BotClient {
         }
     }
 
-    async fn request(&self, method: reqwest::Method, endpoint: &str, body: Option<&Value>) -> Result<Value> {
+    async fn request(
+        &self,
+        method: reqwest::Method,
+        endpoint: &str,
+        body: Option<&Value>,
+    ) -> Result<Value> {
         let url = format!("https://discord.com/api/v10{}", endpoint);
         let mut req = self
             .http
@@ -105,7 +110,8 @@ impl BotClient {
     }
 
     async fn post(&self, endpoint: &str, body: &Value) -> Result<Value> {
-        self.request(reqwest::Method::POST, endpoint, Some(body)).await
+        self.request(reqwest::Method::POST, endpoint, Some(body))
+            .await
     }
 
     pub async fn guilds(&self) -> Result<Value> {

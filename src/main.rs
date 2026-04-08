@@ -278,18 +278,24 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::Config { command } => handle_config(command)?,
         Commands::Send { content, webhook } => send_webhook_message(content, webhook).await?,
-        Commands::Embed { title, description, color, webhook } => {
-            send_webhook_embed(title, description, color, webhook).await?
-        }
+        Commands::Embed {
+            title,
+            description,
+            color,
+            webhook,
+        } => send_webhook_embed(title, description, color, webhook).await?,
         Commands::Guilds => list_guilds().await?,
         Commands::Channels { guild_id } => list_channels(guild_id).await?,
         Commands::Messages { channel_id, limit } => fetch_messages(channel_id, limit).await?,
-        Commands::Message { channel_id, content } => {
-            send_channel_message(channel_id, content).await?
-        }
-        Commands::CreateWebhook { channel_id, name, save_as } => {
-            create_webhook(channel_id, name, save_as).await?
-        }
+        Commands::Message {
+            channel_id,
+            content,
+        } => send_channel_message(channel_id, content).await?,
+        Commands::CreateWebhook {
+            channel_id,
+            name,
+            save_as,
+        } => create_webhook(channel_id, name, save_as).await?,
     }
 
     Ok(())
