@@ -1,3 +1,5 @@
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+
 mod api;
 mod config;
 
@@ -103,12 +105,16 @@ enum ConfigCommands {
     Show,
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 fn get_webhook_url(name: Option<&str>) -> Result<String> {
     let config = config::load();
+    get_webhook_url_from_config(&config, name)
+}
 
+fn get_webhook_url_from_config(config: &config::Config, name: Option<&str>) -> Result<String> {
     let webhook_name = match name {
         Some(n) => n.to_string(),
-        None => config.default_webhook.ok_or_else(|| {
+        None => config.default_webhook.clone().ok_or_else(|| {
             anyhow::anyhow!("No default webhook set. Use 'discord config default-webhook <name>'")
         })?,
     };
@@ -120,6 +126,7 @@ fn get_webhook_url(name: Option<&str>) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("Webhook '{}' not found", webhook_name))
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 fn get_bot_client() -> Result<api::BotClient> {
     let config = config::load();
     let token = config.bot_token.ok_or_else(|| {
@@ -128,74 +135,114 @@ fn get_bot_client() -> Result<api::BotClient> {
     Ok(api::BotClient::new(&token))
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 fn handle_config(command: ConfigCommands) -> Result<()> {
     match command {
-        ConfigCommands::AddWebhook { name, url } => {
-            let mut config = config::load();
-            config.webhooks.insert(name.clone(), url);
-            if config.default_webhook.is_none() {
-                config.default_webhook = Some(name.clone());
-            }
-            config::save(&config)?;
-            println!("Added webhook '{}'", name);
-        }
-        ConfigCommands::RemoveWebhook { name } => {
-            let mut config = config::load();
-            if config.webhooks.remove(&name).is_some() {
-                if config.default_webhook.as_ref() == Some(&name) {
-                    config.default_webhook = None;
-                }
-                config::save(&config)?;
-                println!("Removed webhook '{}'", name);
-            } else {
-                bail!("Webhook '{}' not found", name);
-            }
-        }
-        ConfigCommands::DefaultWebhook { name } => {
-            let mut config = config::load();
-            if !config.webhooks.contains_key(&name) {
-                bail!("Webhook '{}' not found", name);
-            }
-            config.default_webhook = Some(name.clone());
-            config::save(&config)?;
-            println!("Default webhook set to '{}'", name);
-        }
-        ConfigCommands::BotToken { token } => {
-            let mut config = config::load();
-            config.bot_token = Some(token);
-            config::save(&config)?;
-            println!("Bot token saved");
-        }
-        ConfigCommands::Show => {
-            let config = config::load();
-            println!("Webhooks:");
-            for (name, url) in &config.webhooks {
-                let default_marker = if config.default_webhook.as_ref() == Some(name) {
-                    " (default)"
-                } else {
-                    ""
-                };
-                // Mask URL for security
-                let masked = if url.len() > 50 {
-                    format!("{}...{}", &url[..40], &url[url.len() - 10..])
-                } else {
-                    url.clone()
-                };
-                println!("  {}{}: {}", name, default_marker, masked);
-            }
-            println!(
-                "Bot token: {}",
-                if config.bot_token.is_some() {
-                    "configured"
-                } else {
-                    "not set"
-                }
-            );
-        }
+        ConfigCommands::AddWebhook { name, url } => add_webhook(name, url),
+        ConfigCommands::RemoveWebhook { name } => remove_webhook(name),
+        ConfigCommands::DefaultWebhook { name } => set_default_webhook(name),
+        ConfigCommands::BotToken { token } => set_bot_token(token),
+        ConfigCommands::Show => show_config(),
+    }?;
+    Ok(())
+}
+
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn add_webhook(name: String, url: String) -> Result<()> {
+    let mut config = config::load();
+    add_webhook_to_config(&mut config, &name, url);
+    config::save(&config)?;
+    println!("Added webhook '{}'", name);
+    Ok(())
+}
+
+fn add_webhook_to_config(config: &mut config::Config, name: &str, url: String) {
+    config.webhooks.insert(name.to_string(), url);
+    if config.default_webhook.is_none() {
+        config.default_webhook = Some(name.to_string());
+    }
+}
+
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn remove_webhook(name: String) -> Result<()> {
+    let mut config = config::load();
+    remove_webhook_from_config(&mut config, &name)?;
+    config::save(&config)?;
+    println!("Removed webhook '{}'", name);
+    Ok(())
+}
+
+fn remove_webhook_from_config(config: &mut config::Config, name: &str) -> Result<()> {
+    if config.webhooks.remove(name).is_none() {
+        bail!("Webhook '{}' not found", name);
+    }
+    if config.default_webhook.as_deref() == Some(name) {
+        config.default_webhook = None;
     }
     Ok(())
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn set_default_webhook(name: String) -> Result<()> {
+    let mut config = config::load();
+    set_default_webhook_in_config(&mut config, &name)?;
+    config::save(&config)?;
+    println!("Default webhook set to '{}'", name);
+    Ok(())
+}
+
+fn set_default_webhook_in_config(config: &mut config::Config, name: &str) -> Result<()> {
+    if !config.webhooks.contains_key(name) {
+        bail!("Webhook '{}' not found", name);
+    }
+    config.default_webhook = Some(name.to_string());
+    Ok(())
+}
+
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn set_bot_token(token: String) -> Result<()> {
+    let mut config = config::load();
+    set_bot_token_in_config(&mut config, token);
+    config::save(&config)?;
+    println!("Bot token saved");
+    Ok(())
+}
+
+fn set_bot_token_in_config(config: &mut config::Config, token: String) {
+    config.bot_token = Some(token);
+}
+
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn show_config() -> Result<()> {
+    let config = config::load();
+    println!("Webhooks:");
+    for (name, url) in &config.webhooks {
+        let default_marker = if config.default_webhook.as_ref() == Some(name) {
+            " (default)"
+        } else {
+            ""
+        };
+        println!("  {}{}: {}", name, default_marker, mask_webhook(url));
+    }
+    println!(
+        "Bot token: {}",
+        if config.bot_token.is_some() {
+            "configured"
+        } else {
+            "not set"
+        }
+    );
+    Ok(())
+}
+
+fn mask_webhook(url: &str) -> String {
+    if url.len() <= 50 {
+        return url.to_string();
+    }
+    format!("{}...{}", &url[..40], &url[url.len() - 10..])
+}
+
+#[cfg_attr(coverage_nightly, coverage(off))]
 async fn send_webhook_message(content: String, webhook: Option<String>) -> Result<()> {
     let url = get_webhook_url(webhook.as_deref())?;
     let client = api::WebhookClient::new(&url);
@@ -204,6 +251,7 @@ async fn send_webhook_message(content: String, webhook: Option<String>) -> Resul
     Ok(())
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 async fn send_webhook_embed(
     title: Option<String>,
     description: Option<String>,
@@ -212,12 +260,7 @@ async fn send_webhook_embed(
 ) -> Result<()> {
     let url = get_webhook_url(webhook.as_deref())?;
     let client = api::WebhookClient::new(&url);
-    let color_val = color
-        .map(|c| {
-            let c = c.trim_start_matches("0x").trim_start_matches('#');
-            u32::from_str_radix(c, 16)
-        })
-        .transpose()?;
+    let color_val = parse_embed_color(color.as_deref())?;
     client
         .send_embed(title.as_deref(), description.as_deref(), color_val)
         .await?;
@@ -225,6 +268,17 @@ async fn send_webhook_embed(
     Ok(())
 }
 
+fn parse_embed_color(color: Option<&str>) -> Result<Option<u32>> {
+    color
+        .map(|c| {
+            let c = c.trim_start_matches("0x").trim_start_matches('#');
+            u32::from_str_radix(c, 16)
+        })
+        .transpose()
+        .map_err(Into::into)
+}
+
+#[cfg_attr(coverage_nightly, coverage(off))]
 async fn list_guilds() -> Result<()> {
     let client = get_bot_client()?;
     let guilds = client.guilds().await?;
@@ -232,6 +286,7 @@ async fn list_guilds() -> Result<()> {
     Ok(())
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 async fn list_channels(guild_id: String) -> Result<()> {
     let client = get_bot_client()?;
     let channels = client.channels(&guild_id).await?;
@@ -239,6 +294,7 @@ async fn list_channels(guild_id: String) -> Result<()> {
     Ok(())
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 async fn fetch_messages(channel_id: String, limit: u32) -> Result<()> {
     let client = get_bot_client()?;
     let messages = client.messages(&channel_id, limit).await?;
@@ -246,6 +302,7 @@ async fn fetch_messages(channel_id: String, limit: u32) -> Result<()> {
     Ok(())
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 async fn send_channel_message(channel_id: String, content: String) -> Result<()> {
     let client = get_bot_client()?;
     let result = client.send_message(&channel_id, &content).await?;
@@ -253,6 +310,7 @@ async fn send_channel_message(channel_id: String, content: String) -> Result<()>
     Ok(())
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 async fn create_webhook(channel_id: String, name: String, save_as: Option<String>) -> Result<()> {
     let client = get_bot_client()?;
     let result = client.create_webhook(&channel_id, &name).await?;
@@ -272,6 +330,7 @@ async fn create_webhook(channel_id: String, name: String, save_as: Option<String
 }
 
 #[tokio::main]
+#[cfg_attr(coverage_nightly, coverage(off))]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -300,3 +359,6 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

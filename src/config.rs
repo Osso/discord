@@ -12,11 +12,13 @@ pub struct Config {
     pub bot_token: Option<String>,
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 fn config_path() -> Result<PathBuf> {
     let config_dir = dirs::config_dir().context("Could not find config directory")?;
     Ok(config_dir.join("discord-cli").join("config.json"))
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 pub fn load() -> Config {
     let path = match config_path() {
         Ok(p) => p,
@@ -29,6 +31,7 @@ pub fn load() -> Config {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 pub fn save(config: &Config) -> Result<()> {
     let path = config_path()?;
     if let Some(parent) = path.parent() {
